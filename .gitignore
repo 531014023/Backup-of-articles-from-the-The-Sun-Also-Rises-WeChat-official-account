@@ -4,6 +4,9 @@ fetch.log
 # 抓取进度
 progress.json
 
+# HTML缓存文件（原始抓取内容，体积较大）
+html_source/
+
 # 系统文件
 .DS_Store
 Thumbs.db
