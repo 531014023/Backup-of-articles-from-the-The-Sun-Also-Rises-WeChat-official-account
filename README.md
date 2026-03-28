@@ -47,9 +47,3 @@
 1. **阅读**: 推荐使用 `md/` 文件夹下的 Markdown 文件
 2. **查看原始排版**: 使用 `html/` 文件夹下的可见HTML文件
 
-## 忽略文件
-
-以下文件不会被上传到GitHub：
-- `fetch.log` - 抓取过程日志
-- `progress.json` - 抓取进度状态
-- `html_source/` - HTML缓存文件（原始抓取内容，体积较大）
