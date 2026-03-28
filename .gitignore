@@ -16,8 +16,8 @@ __pycache__/
 # 工具文件夹
 Access_wechat_article/
 
-# 文章数据文件夹（体积大，单独管理）
-太阳照常升起/
+# HTML缓存文件（原始抓取内容，体积较大）
+太阳照常升起/html_source/
 
 # 系统文件
 .DS_Store
