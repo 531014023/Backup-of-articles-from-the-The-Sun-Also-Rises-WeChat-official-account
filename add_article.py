@@ -31,13 +31,13 @@ USER_AGENTS = [
 
 def fetch_article_info(url):
     """
-    抓取文章信息（标题和发布时间）
+    抓取文章信息（标题、发布时间和公众号名称）
     
     Args:
         url: 文章URL
     
     Returns:
-        (title, publish_time, error)
+        (title, publish_time, nickname, error)
     """
     try:
         headers = {
@@ -56,11 +56,11 @@ def fetch_article_info(url):
         
         # 检查是否被限制
         if "访问频繁" in html or "验证码" in html or "Please verify" in html:
-            return None, None, "检测到访问限制，请稍后再试"
+            return None, None, None, "检测到访问限制，请稍后再试"
         
         # 检查页面内容
         if 'js_content' not in html:
-            return None, None, "页面没有文章内容，链接可能已失效"
+            return None, None, None, "页面没有文章内容，链接可能已失效"
         
         # 提取标题
         title = "未知标题"
@@ -121,14 +121,32 @@ def fetch_article_info(url):
                 ts = int(ts_match.group(1))
                 publish_time = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
         
-        return title, publish_time, None
+        # 提取公众号名称
+        nickname = "未知公众号"
+        nickname_patterns = [
+            r'<a[^>]*id="js_name"[^>]*>(.*?)</a>',
+            r'<span[^>]*class="profile_nickname"[^>]*>(.*?)</span>',
+            r'<div[^>]*class="profile_nickname"[^>]*>(.*?)</div>',
+            r'var nickname = [\'"]([^\'"]+)[\'"]',
+            r'"nick_name":"([^"]+)"',
+        ]
+        for pattern in nickname_patterns:
+            match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
+            if match:
+                nickname = match.group(1).strip()
+                # 清理HTML标签
+                nickname = re.sub(r'<[^>]+>', '', nickname).strip()
+                if nickname:
+                    break
+        
+        return title, publish_time, nickname, None
         
     except requests.exceptions.Timeout:
-        return None, None, "请求超时，请检查网络连接"
+        return None, None, None, "请求超时，请检查网络连接"
     except requests.exceptions.ConnectionError:
-        return None, None, "网络连接错误"
+        return None, None, None, "网络连接错误"
     except Exception as e:
-        return None, None, f"抓取失败: {str(e)}"
+        return None, None, None, f"抓取失败: {str(e)}"
 
 
 def load_csv():
@@ -150,10 +168,11 @@ def load_csv():
                     'num': num,
                     'title': row.get('文章名', ''),
                     'publish_time': row.get('发布时间', ''),
+                    'nickname': row.get('公众号', ''),  # 兼容旧数据
                     'url': row.get('URL', '')
                 })
     except Exception as e:
-        print(f"⚠️ 读取CSV文件出错: {e}")
+        print(f"读取CSV文件出错: {e}")
     
     return articles, max_num
 
@@ -163,17 +182,18 @@ def save_csv(articles):
     try:
         with open(CSV_FILE, 'w', encoding='utf-8-sig', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['序号', '文章名', '发布时间', 'URL'])
+            writer.writerow(['序号', '文章名', '发布时间', '公众号', 'URL'])
             for article in articles:
                 writer.writerow([
                     article['num'],
                     article['title'],
                     article['publish_time'],
+                    article.get('nickname', ''),  # 公众号名称
                     article['url']
                 ])
         return True
     except Exception as e:
-        print(f"❌ 保存CSV文件失败: {e}")
+        print(f"保存CSV文件失败: {e}")
         return False
 
 
@@ -184,49 +204,50 @@ def add_article(url):
     Args:
         url: 文章链接
     """
-    print(f"\n📎 文章链接: {url}")
+    print(f"\n文章链接: {url}")
     print("-" * 50)
     
     # 验证URL格式
     if not url.startswith('https://mp.weixin.qq.com/'):
-        print("❌ 错误: 请输入有效的微信公众号文章链接")
+        print("错误: 请输入有效的微信公众号文章链接")
         print("   链接格式应为: https://mp.weixin.qq.com/s/...")
         return False
     
     # 加载现有数据
     articles, max_num = load_csv()
-    print(f"📊 当前共有 {len(articles)} 篇文章，最大序号为 {max_num}")
+    print(f"当前共有 {len(articles)} 篇文章，最大序号为 {max_num}")
     
     # 检查是否已存在
     for article in articles:
         if article['url'] == url:
-            print(f"⚠️ 该文章已存在于列表中 (序号: {article['num']})")
+            print(f"该文章已存在于列表中 (序号: {article['num']})")
             print(f"   标题: {article['title']}")
             print(f"   发布时间: {article['publish_time']}")
             return False
     
     # 抓取文章信息
-    print("\n🔍 正在解析文章信息...")
-    title, publish_time, error = fetch_article_info(url)
+    print("\n正在解析文章信息...")
+    title, publish_time, nickname, error = fetch_article_info(url)
     
     if error:
-        print(f"❌ {error}")
+        print(f"错误: {error}")
         return False
     
     # 显示获取到的信息
-    print(f"\n✅ 解析成功!")
+    print(f"\n解析成功!")
     print(f"   标题: {title}")
     print(f"   发布时间: {publish_time if publish_time else '未识别'}")
+    print(f"   公众号: {nickname}")
     
     # 如果没有获取到发布时间，询问用户
     if not publish_time:
-        user_time = input("\n⚠️ 未能自动识别发布时间，请手动输入 (格式: YYYY-MM-DD): ").strip()
+        user_time = input("\n未能自动识别发布时间，请手动输入 (格式: YYYY-MM-DD): ").strip()
         if user_time:
             # 验证日期格式
             if re.match(r'\d{4}-\d{2}-\d{2}', user_time):
                 publish_time = user_time
             else:
-                print("⚠️ 日期格式不正确，使用今天的日期")
+                print("日期格式不正确，使用今天的日期")
                 publish_time = datetime.now().strftime('%Y-%m-%d')
         else:
             publish_time = datetime.now().strftime('%Y-%m-%d')
@@ -237,6 +258,7 @@ def add_article(url):
         'num': new_num,
         'title': title,
         'publish_time': publish_time,
+        'nickname': nickname,  # 公众号名称
         'url': url
     }
     
@@ -245,7 +267,7 @@ def add_article(url):
     
     # 保存到CSV（不重新编号，序号是固定ID）
     if save_csv(articles):
-        print(f"\n✅ 文章已添加到CSV文件")
+        print(f"\n文章已添加到CSV文件")
         print(f"   新序号: {new_num}")
         print(f"   总文章数: {len(articles)}")
         return True
@@ -271,7 +293,7 @@ def main():
                 user_input = input("\n> ").strip()
                 
                 if user_input.lower() in ('q', 'quit', 'exit'):
-                    print("\n👋 再见!")
+                    print("\n再见!")
                     break
                 
                 if not user_input:
@@ -280,7 +302,7 @@ def main():
                 add_article(user_input)
                 
             except KeyboardInterrupt:
-                print("\n\n👋 再见!")
+                print("\n\n再见!")
                 break
             except EOFError:
                 break

@@ -17,7 +17,8 @@ __pycache__/
 Access_wechat_article/
 
 # HTML缓存文件（原始抓取内容，体积较大）
-太阳照常升起/html_source/
+backup/太阳照常升起/html_source/
+backup/太阳照常升起/cache/
 
 # 系统文件
 .DS_Store

@@ -61,7 +61,7 @@ def check_required_env():
     """检查必需的环境变量是否已设置"""
     output_dir = os.getenv("OUTPUT_DIR")
     if not output_dir:
-        print("❌ 错误：未设置 OUTPUT_DIR 环境变量")
+        print("错误：未设置 OUTPUT_DIR 环境变量")
         print("")
         print("请创建 .env 文件并设置输出目录：")
         print("  1. 复制 .env.example 为 .env")
@@ -75,10 +75,15 @@ def check_required_env():
 
 # 保存目录（必需的环境变量）
 OUTPUT_DIR = check_required_env()
-HTML_SOURCE_DIR = OUTPUT_DIR / "html_source"  # HTML缓存文件
+
+# 当前使用的目录（会根据公众号名称动态更新）
+HTML_SOURCE_DIR = OUTPUT_DIR / "cache"  # HTML缓存文件
 HTML_DIR = OUTPUT_DIR / "html"  # 可见HTML文件（用于阅读）
 MD_DIR = OUTPUT_DIR / "md"
 IMAGES_DIR = OUTPUT_DIR / "images"  # 图片保存目录
+
+# 全局变量存储当前公众号名称
+current_nickname = ""
 
 # 文章列表文件路径（可从环境变量配置，默认：articles_with_publish_date.csv）
 ARTICLES_CSV_FILE = Path(os.getenv("ARTICLES_CSV_FILE", SCRIPT_DIR / "articles_with_publish_date.csv"))
@@ -120,6 +125,7 @@ def load_articles():
                     'num': row.get('序号', ''),
                     'title': row.get('文章名', ''),
                     'publish_time': row.get('发布时间', ''),
+                    'nickname': row.get('公众号', ''),  # 公众号名称
                     'url': row.get('URL', '')
                 }
                 articles.append(article)
@@ -296,13 +302,13 @@ def clean_markdown_content(content):
     
     # 匹配: **"[文字**](url)"**（链接文字末尾有**）
     content = re.sub(
-        r'\*\*([""""""「『【（])\[([^\*\]]+?)\*\*\]\(([^)]+)\)([""""""」』】）])\*\*',
+        r'\*\*([""""「『【（])\[([^\*\]]+?)\*\*\]\(([^)]+)\)([""""」』】）])\*\*',
         clean_quoted_link,
         content
     )
     # 匹配: **"[文字](url)"**（链接文字无内部加粗）
     content = re.sub(
-        r'\*\*([""""""「『【（])\[([^\]]+)\]\(([^)]+)\)([""""""」』】）])\*\*',
+        r'\*\*([""""「『【（])\[([^\]]+)\]\(([^)]+)\)([""""」』】）])\*\*',
         clean_quoted_link,
         content
     )
@@ -342,8 +348,8 @@ def clean_markdown_content(content):
     
     # 修复加粗包含标点符号的问题
     # 核心逻辑：找到成对的 **...**，只处理后一个 ** 在句子结束标点后的情况
-    # **文本。** -> **文本**。 (正确)
-    # **文本，** -> **文本，** (逗号保留在加粗内，不处理)
+    # **文本。** -> **文本**。(正确)
+    # **文本，** -> **文本，**(逗号保留在加粗内，不处理)
     
     def process_bold_pair(match):
         """处理成对加粗，只将句子结束标点移出"""
@@ -436,7 +442,7 @@ def download_image(img_url, save_path, session=None):
         return False, img_url, False
 
 
-def extract_images_from_html(html_content, publish_time, article_title):
+def extract_images_from_html(html_content, publish_time, article_title, images_dir=None):
     """
     从HTML正文中提取图片URL（只提取js_content内的图片）
     
@@ -444,11 +450,15 @@ def extract_images_from_html(html_content, publish_time, article_title):
         html_content: HTML内容
         publish_time: 发布时间（用于目录命名）
         article_title: 文章标题（用于目录命名）
+        images_dir: 图片保存目录（默认为全局IMAGES_DIR）
         
     Returns:
         list: [(原始URL, 本地保存路径), ...]
     """
     from bs4 import BeautifulSoup
+    
+    # 使用传入的目录或全局目录
+    img_base_dir = images_dir if images_dir else IMAGES_DIR
     
     soup = BeautifulSoup(html_content, 'html.parser')
     images = []
@@ -465,7 +475,7 @@ def extract_images_from_html(html_content, publish_time, article_title):
     if not publish_time:
         publish_time = "未知时间"
     safe_publish_time = sanitize_filename(publish_time)
-    article_img_dir = IMAGES_DIR / f"{safe_publish_time}_{safe_title}"
+    article_img_dir = img_base_dir / f"{safe_publish_time}_{safe_title}"
     
     # 只在正文区域内查找图片
     for img in content_elem.find_all('img'):
@@ -499,7 +509,7 @@ def extract_images_from_html(html_content, publish_time, article_title):
     return images
 
 
-def process_images_for_article(html_content, md_content, session=None, publish_time="", article_title=""):
+def process_images_for_article(html_content, md_content, session=None, publish_time="", article_title="", images_dir=None):
     """
     处理文章中的所有图片：下载并替换链接（已存在的图片会跳过下载）
 
@@ -509,6 +519,7 @@ def process_images_for_article(html_content, md_content, session=None, publish_t
         session: requests session对象
         publish_time: 发布时间（用于目录命名）
         article_title: 文章标题（用于目录命名）
+        images_dir: 图片保存目录（默认为全局IMAGES_DIR）
 
     Returns:
         (new_html, new_md, downloaded_count)
@@ -516,8 +527,11 @@ def process_images_for_article(html_content, md_content, session=None, publish_t
     if session is None:
         session = requests.Session()
 
+    # 使用传入的目录或全局目录
+    img_base_dir = images_dir if images_dir else IMAGES_DIR
+
     # 提取图片列表
-    images = extract_images_from_html(html_content, publish_time, article_title)
+    images = extract_images_from_html(html_content, publish_time, article_title, img_base_dir)
 
     if not images:
         return html_content, md_content, 0
@@ -534,6 +548,7 @@ def process_images_for_article(html_content, md_content, session=None, publish_t
             safe_title = sanitize_filename(article_title) if article_title else ""
             pt = publish_time if publish_time else "未知时间"
             safe_pt = sanitize_filename(pt)  # 清理发布时间中的非法字符
+            # 使用当前图片目录的相对路径
             rel_path = f"../images/{safe_pt}_{safe_title}/{local_path.name}"
             url_mapping[img_url] = rel_path
             
@@ -597,11 +612,7 @@ class ArticleFetcher:
             "Cache-Control": "max-age=0",
         })
         
-        # 确保目录存在
-        HTML_SOURCE_DIR.mkdir(parents=True, exist_ok=True)
-        HTML_DIR.mkdir(parents=True, exist_ok=True)
-        MD_DIR.mkdir(parents=True, exist_ok=True)
-        IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        # 目录会在获取到公众号名称后动态创建
     
     def _load_local_html(self, article_num):
         """从本地加载HTML缓存文件"""
@@ -751,12 +762,6 @@ class ArticleFetcher:
                     if publish_time:
                         break
         
-        # 提取公众号名称
-        nickname = "太阳照常升起"
-        nick_elem = soup.find("a", id="js_name") or soup.find(class_="profile_nickname")
-        if nick_elem:
-            nickname = nick_elem.get_text(strip=True)
-        
         # 提取正文内容
         content_elem = soup.find(id="js_content")
         if not content_elem:
@@ -773,7 +778,7 @@ class ArticleFetcher:
         return {
             "title": title,
             "publish_time": publish_time,
-            "nickname": nickname,
+            "nickname": current_nickname,  # 使用从CSV获取的公众号名称
             "content_text": content_text,
             "url": url
         }, None
@@ -783,11 +788,47 @@ class ArticleFetcher:
 
 def sanitize_filename(filename):
     """清理文件名"""
-    filename = re.sub(r'[<>:"/\\|?*]', '-', filename)
+    filename = re.sub(r'[<>"/\\|?*]', '-', filename)
     filename = filename.strip('. ')
     if len(filename) > 100:
         filename = filename[:100]
     return filename
+
+
+def update_output_dirs(nickname):
+    """
+    根据公众号名称更新输出目录
+    缓存文件跟随公众号目录存放
+    
+    Args:
+        nickname: 公众号名称
+    """
+    global HTML_SOURCE_DIR, HTML_DIR, MD_DIR, IMAGES_DIR, current_nickname
+    
+    if not nickname or nickname == current_nickname:
+        return
+    
+    # 清理公众号名称，作为目录名
+    safe_nickname = sanitize_filename(nickname)
+    if not safe_nickname:
+        safe_nickname = "未知公众号"
+    
+    current_nickname = nickname
+    
+    # 更新目录路径：OUTPUT_DIR/公众号名称/子目录
+    base_dir = OUTPUT_DIR / safe_nickname
+    HTML_SOURCE_DIR = base_dir / "cache"  # 缓存放在各自公众号目录下
+    HTML_DIR = base_dir / "html"
+    MD_DIR = base_dir / "md"
+    IMAGES_DIR = base_dir / "images"
+    
+    # 确保目录存在
+    HTML_SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    HTML_DIR.mkdir(parents=True, exist_ok=True)
+    MD_DIR.mkdir(parents=True, exist_ok=True)
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    
+    logging.info(f"  已切换到公众号目录: {safe_nickname}")
 
 
 def save_as_markdown(article_title, article_data, publish_time):
@@ -830,7 +871,7 @@ def save_as_markdown(article_title, article_data, publish_time):
         return False
 
 
-def save_extracted_html(article_title, html_content, url, publish_time):
+def save_extracted_html(article_title, html_content, url, publish_time, nickname=None):
     """提取并保存可见的HTML内容（js_content显示版本）"""
     from bs4 import BeautifulSoup
 
@@ -844,6 +885,9 @@ def save_extracted_html(article_title, html_content, url, publish_time):
     filename = f"{safe_publish_time}_{safe_title}.html"
     filepath = HTML_DIR / filename
     
+    # 使用传入的公众号名称或全局变量
+    article_nickname = nickname if nickname else current_nickname
+    
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
         
@@ -851,12 +895,6 @@ def save_extracted_html(article_title, html_content, url, publish_time):
         title_elem = soup.find(id="activity_name") or soup.find(class_="rich_media_title")
         title = title_elem.get_text(strip=True) if title_elem else article_title
         
-        # 提取公众号名称
-        nickname = "太阳照常升起"
-        nick_elem = soup.find("a", id="js_name") or soup.find(class_="profile_nickname")
-        if nick_elem:
-            nickname = nick_elem.get_text(strip=True)
-
         # 提取发布时间（尝试多种选择器）
         publish_time = ""
         time_selectors = [
@@ -1005,7 +1043,7 @@ def save_extracted_html(article_title, html_content, url, publish_time):
     <div class="article-header">
         <h1 class="article-title">{title}</h1>
         <div class="article-meta">
-            <p><strong>来源:</strong> {nickname}</p>
+            <p><strong>来源:</strong> {article_nickname}</p>
             <p><strong>发布时间:</strong> {publish_time}</p>
             <p><strong>原文链接:</strong> <a href="{url}" target="_blank">{url}</a></p>
         </div>
@@ -1093,6 +1131,8 @@ class ProgressManager:
 
 def main():
     """主函数"""
+    global HTML_SOURCE_DIR, HTML_DIR, MD_DIR, IMAGES_DIR
+    
     logger = setup_logging()
     logger.info("=" * 60)
     logger.info("微信公众号文章批量抓取脚本启动")
@@ -1135,12 +1175,17 @@ def main():
             
             logger.info(f"\n[{num}] ({i}/{len(articles)}) {title[:50]}...")
             
+            # 根据CSV中的公众号名称提前设置保存目录
+            csv_nickname = article.get('nickname', '')
+            if csv_nickname:
+                update_output_dirs(csv_nickname)
+            
             # 抓取文章（传入CSV中的发布时间作为备用）
             csv_publish_time = article.get('publish_time', '')
             article_data, error = fetcher.fetch_article(url, article_num=num, csv_publish_time=csv_publish_time)
             
             if error:
-                logger.error(f"  ❌ 抓取失败: {error}")
+                logger.error(f"  抓取失败: {error}")
                 progress.mark_failed(num, error)
                 continue
             
@@ -1152,30 +1197,31 @@ def main():
                     article_data['content_text'],
                     fetcher.session,
                     article_data.get('publish_time', ''),
-                    article_data.get('title', '')
+                    article_data.get('title', ''),
+                    IMAGES_DIR  # 传递当前公众号的图片目录
                 )
                 article_data['content_text'] = processed_md
                 article_data['processed_html'] = processed_html
                 if img_count > 0:
-                    logger.info(f"  ✓ 下载了 {img_count} 张图片")
+                    logger.info(f"  下载了 {img_count} 张图片")
 
             # 保存Markdown
             md_success = save_as_markdown(article_data['title'], article_data, article_data.get('publish_time', ''))
             if md_success:
-                logger.info(f"  ✓ Markdown已保存")
+                logger.info(f"  Markdown已保存")
 
             # 保存提取的可见HTML（js_content显示版本，用于阅读）
             if article_data.get('raw_html'):
                 html_to_save = article_data.get('processed_html', article_data['raw_html'])
-                visible_path, _ = save_extracted_html(article_data['title'], html_to_save, url, article_data.get('publish_time', ''))
+                visible_path, _ = save_extracted_html(article_data['title'], html_to_save, url, article_data.get('publish_time', ''), article_data.get('nickname', ''))
                 if visible_path:
-                    logger.info(f"  ✓ 可见HTML已保存")
+                    logger.info(f"  可见HTML已保存")
             
             # 标记完成
             if md_success:
                 progress.mark_completed(num)
             else:
-                logger.error(f"  ❌ 保存失败")
+                logger.error(f"  保存失败")
                 progress.mark_failed(num, "保存失败")
         
         # 最终统计
