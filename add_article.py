@@ -84,34 +84,40 @@ def fetch_article_info(url):
         
         # 提取发布时间
         publish_time = ""
-        # 尝试多种时间提取方式
-        time_patterns = [
-            r'<em[^>]*id="publish_time"[^>]*>(.*?)</em>',
-            r'<em[^>]*id="js_publish_time"[^>]*>(.*?)</em>',
-            r'var s = "(\d{4}-\d{2}-\d{2})"',
-            r'var publish_time = [\'"]([^\'"]+)[\'"]',
-            r's="(\d{4}-\d{2}-\d{2})"',
-            r'"publishTime":"(\d{4}-\d{2}-\d{2})',
-            r'(\d{4})年(\d{1,2})月(\d{1,2})日',
-            r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})',
-        ]
-        for pattern in time_patterns:
-            match = re.search(pattern, html)
-            if match:
-                time_str = match.group(0)
-                # 如果是年-月-日格式
-                year_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', time_str)
-                if year_match:
-                    publish_time = f"{year_match.group(1)}-{int(year_match.group(2)):02d}-{int(year_match.group(3)):02d}"
-                    break
-                # 如果是 YYYY-MM-DD 格式
-                date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', time_str)
-                if date_match:
-                    year = int(date_match.group(1))
-                    # 年份过滤
-                    if 2010 <= year <= 2030:
-                        publish_time = date_match.group(0)
+        # 优先匹配精确的 create_time / createTime 模式（完整日期时间）
+        precise_match = re.search(r"create[_\s]?time\s*[:=]\s*JsDecode\s*\(\s*['\"]([^'\"]+)['\"]", html)
+        if not precise_match:
+            precise_match = re.search(r"var\s+createTime\s*=\s*['\"]([^'\"]+)['\"]", html)
+        if precise_match:
+            # 提取日期部分（格式如 2026-04-01 21:38）
+            date_part = re.search(r'(\d{4}-\d{2}-\d{2})', precise_match.group(1))
+            if date_part:
+                publish_time = date_part.group(1)
+        else:
+            # 备选：其他时间提取方式
+            time_patterns = [
+                r'<em[^>]*id="publish_time"[^>]*>(.*?)</em>',
+                r'<em[^>]*id="js_publish_time"[^>]*>(.*?)</em>',
+                r'var s = "(\d{4}-\d{2}-\d{2})"',
+                r'var publish_time = [\'"]([^\'"]+)[\'"]',
+                r's="(\d{4}-\d{2}-\d{2})"',
+                r'"publishTime":"(\d{4}-\d{2}-\d{2})',
+                r'(\d{4})年(\d{1,2})月(\d{1,2})日',
+            ]
+            for pattern in time_patterns:
+                match = re.search(pattern, html)
+                if match:
+                    time_str = match.group(0)
+                    year_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', time_str)
+                    if year_match:
+                        publish_time = f"{year_match.group(1)}-{int(year_match.group(2)):02d}-{int(year_match.group(3)):02d}"
                         break
+                    date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', time_str)
+                    if date_match:
+                        year = int(date_match.group(1))
+                        if 2010 <= year <= 2030:
+                            publish_time = date_match.group(0)
+                            break
         
         # 如果还是没找到，从URL参数中尝试
         if not publish_time:
