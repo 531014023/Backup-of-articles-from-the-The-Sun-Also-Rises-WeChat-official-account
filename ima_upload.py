@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+import sys
+import argparse
 import csv
 import shutil
 import requests
@@ -23,8 +25,14 @@ headers = {
     'Content-Type': 'application/json; charset=utf-8'
 }
 
+# ========== 解析命令行参数 ==========
+parser = argparse.ArgumentParser(description='上传微信文章到 IMA 知识库')
+parser.add_argument('keyword', nargs='?', help='文章标题关键字（可选，默认使用环境变量 ARTICLE_KEYWORD）')
+args = parser.parse_args()
+
 # ========== 步骤1：从 CSV 读取最新公众号名 ==========
-article_keyword = os.environ.get('ARTICLE_KEYWORD', '')
+# 优先使用命令行参数，其次环境变量
+article_keyword = args.keyword or os.environ.get('ARTICLE_KEYWORD', '')
 account_name = None
 article_title = None
 
@@ -159,3 +167,6 @@ print('add_knowledge 结果:', resp.json())
 # ========== 步骤8：清理 ==========
 os.remove(temp_file)
 print('上传完成！')
+print(f'\n使用示例:')
+print(f'  python ima_upload.py "文章标题关键字"')
+print(f'  python ima_upload.py  # 使用环境变量 ARTICLE_KEYWORD')
