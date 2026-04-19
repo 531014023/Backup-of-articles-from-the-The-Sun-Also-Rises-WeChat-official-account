@@ -24,6 +24,35 @@ from urllib.parse import urlparse
 
 import requests
 
+# ========== 加载环境变量配置 ==========
+
+def load_env_config():
+    """加载 .env 配置文件"""
+    SCRIPT_DIR = Path(__file__).parent.absolute()
+    env_file = SCRIPT_DIR / ".env"
+    
+    if env_file.exists():
+        try:
+            # 尝试使用 python-dotenv
+            from dotenv import load_dotenv
+            load_dotenv(env_file)
+            return True
+        except ImportError:
+            # 如果没有安装 python-dotenv，手动解析
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key] = value
+            return True
+    return False
+
+
+# 加载 .env 文件
+load_env_config()
+
+
 # ========== 配置区域 ==========
 SCRIPT_DIR = Path(__file__).parent.absolute()
 CSV_FILE = SCRIPT_DIR / "articles_with_publish_date.csv"
@@ -31,8 +60,9 @@ PROGRESS_FILE = SCRIPT_DIR / "progress.json"
 FETCH_SCRIPT = SCRIPT_DIR / "fetch_weixin_articles.py"
 UPLOAD_SCRIPT = SCRIPT_DIR / "ima_upload.py"
 
-# RSS API地址
-RSS_URL = "http://192.168.3.100:12005/feed/MP_WXS_3248194593.rss"
+# RSS API地址（基础URL从环境变量读取，路径固定）
+RSS_BASE_URL = os.environ.get('RSS_BASE_URL', 'http://192.168.3.100:12005')
+RSS_URL = f"{RSS_BASE_URL}/feed/MP_WXS_3248194593.rss"
 
 # 请求配置
 TIMEOUT = 30
