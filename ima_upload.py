@@ -10,10 +10,9 @@ from pathlib import Path
 
 # ========== 配置（从环境变量读取） ==========
 SCRIPT_DIR = Path(__file__).parent.absolute()
-PROJECT_DIR = os.environ.get('PROJECT_DIR', str(SCRIPT_DIR))
 ARTICLE_CSV_FILE = os.environ.get('ARTICLES_CSV_FILE', str(SCRIPT_DIR / 'articles_with_publish_date.csv'))
 OUTPUT_DIR = os.environ.get('OUTPUT_DIR', str(SCRIPT_DIR / 'backup'))
-IMA_DIR = os.environ.get('IMA_DIR', str(SCRIPT_DIR / 'ima'))
+IMA_DIR = os.environ.get('IMA_DIR', '~/.config/ima')
 
 # IMA 凭证（从 ~/.config/ima 读取）
 ima_config_path = os.path.expanduser(IMA_DIR)
