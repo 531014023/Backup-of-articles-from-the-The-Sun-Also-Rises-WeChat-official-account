@@ -6,11 +6,13 @@ import argparse
 import csv
 import shutil
 import requests
+from pathlib import Path
 
 # ========== 配置（从环境变量读取） ==========
-PROJECT_DIR = os.environ.get('PROJECT_DIR', 'C:/Users/53101/Desktop/project/codebuddy/work/wechat_articles_downloads')
-ARTICLE_CSV_FILE = os.environ.get('ARTICLE_CSV_FILE', 'C:/Users/53101/Desktop/project/codebuddy/work/wechat_articles_downloads/articles_with_publish_date.csv')
-OUTPUT_DIR = os.environ.get('OUTPUT_DIR', 'C:/Users/53101/Desktop/project/codebuddy/work/wechat_articles_downloads/backup')
+SCRIPT_DIR = Path(__file__).parent.absolute()
+PROJECT_DIR = os.environ.get('PROJECT_DIR', str(SCRIPT_DIR))
+ARTICLE_CSV_FILE = os.environ.get('ARTICLES_CSV_FILE', str(SCRIPT_DIR / 'articles_with_publish_date.csv'))
+OUTPUT_DIR = os.environ.get('OUTPUT_DIR', str(SCRIPT_DIR / 'backup'))
 
 # IMA 凭证（从 ~/.config/ima/ 读取）
 ima_config_path = os.path.expanduser('~/.config/ima/')
