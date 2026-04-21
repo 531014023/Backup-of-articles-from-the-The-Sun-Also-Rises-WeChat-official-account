@@ -13,9 +13,10 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_DIR = os.environ.get('PROJECT_DIR', str(SCRIPT_DIR))
 ARTICLE_CSV_FILE = os.environ.get('ARTICLES_CSV_FILE', str(SCRIPT_DIR / 'articles_with_publish_date.csv'))
 OUTPUT_DIR = os.environ.get('OUTPUT_DIR', str(SCRIPT_DIR / 'backup'))
+IMA_DIR = os.environ.get('IMA_DIR', str(SCRIPT_DIR / 'ima'))
 
-# IMA 凭证（从 ~/.config/ima/ 读取）
-ima_config_path = os.path.expanduser('~/.config/ima/')
+# IMA 凭证（从 ~/.config/ima 读取）
+ima_config_path = os.path.expanduser(IMA_DIR)
 with open(os.path.join(ima_config_path, 'client_id')) as f:
     IMA_CLIENT_ID = f.read().strip()
 with open(os.path.join(ima_config_path, 'api_key')) as f:
@@ -134,7 +135,7 @@ cos_credential = data['data']['cos_credential']
 media_id = data['data']['media_id']
 
 # ========== 步骤6：cos-upload ==========
-cos_script = os.path.expanduser('~/.claude/skills/ima-skill/knowledge-base/scripts/cos-upload.cjs')
+cos_script = os.path.expanduser('./cos-upload.cjs')
 cos_cmd = (
     f'node "{cos_script}" --file "{temp_file}" '
     f'--secret-id "{cos_credential["secret_id"]}" '
