@@ -13,6 +13,8 @@
 - 支持断点续传（通过 progress.json）
 - 防封机制：随机延时、User-Agent 轮换
 - 可配置的环境变量支持
+- RSS 自动拉取脚本（支持环境变量配置）
+- 支持 COS 对象存储上传
 
 ## 安装依赖
 
@@ -61,6 +63,14 @@ OUTPUT_DIR=C:/Users/你的用户名/Desktop/文章下载
 
 # 网络请求重试次数
 # MAX_RETRIES=3
+
+# ========== RSS 服务配置 ==========
+# RSS 服务端地址
+# RSS_BASE_URL=http://192.168.3.100:12005
+
+# ========== IMA 配置 ==========
+# IMA 密钥存放目录
+# IMA_DIR=./ima
 ```
 
 ### 配置示例
@@ -71,6 +81,8 @@ OUTPUT_DIR=C:/Users/Alice/Desktop/微信公众号文章
 ARTICLES_CSV_FILE=C:/Users/Alice/Desktop/articles.csv
 MIN_DELAY=2
 MAX_DELAY=4
+RSS_BASE_URL=http://192.168.3.100:12005
+IMA_DIR=./ima
 ```
 
 **Linux/Mac 用户示例：**
@@ -79,6 +91,8 @@ OUTPUT_DIR=/home/alice/Documents/wechat_articles
 ARTICLES_CSV_FILE=/home/alice/Documents/articles.csv
 MIN_DELAY=2
 MAX_DELAY=4
+RSS_BASE_URL=http://192.168.3.100:12005
+IMA_DIR=./ima
 ```
 
 ### 可配置项说明
@@ -92,6 +106,8 @@ MAX_DELAY=4
 | `IMG_MIN_DELAY` | 可选 | 图片下载最小间隔（秒） | `0.5` |
 | `IMG_MAX_DELAY` | 可选 | 图片下载最大间隔（秒） | `1.5` |
 | `MAX_RETRIES` | 可选 | 网络请求最大重试次数 | `3` |
+| `RSS_BASE_URL` | 可选 | RSS 服务端地址 | 无 |
+| `IMA_DIR` | 可选 | IMA 密钥存放目录 | `./ima` |
 
 ## CSV 文件格式
 
@@ -120,6 +136,64 @@ python fetch_weixin_articles.py
 ```
 
 如果未配置 `OUTPUT_DIR`，脚本会报错并提示你创建配置文件。
+
+### RSS 自动拉取
+
+使用环境变量配置启动 RSS 自动拉取：
+
+```bash
+RSS_BASE_URL=http://192.168.3.100:12005 python fetch_rss_articles.py
+```
+
+### COS 对象存储上传
+
+使用 `cos-upload.cjs` 将文件上传到腾讯云 COS：
+
+```bash
+node cos-upload.cjs \
+  --file <本地文件路径> \
+  --secret-id <你的 SecretId> \
+  --secret-key <你的 SecretKey> \
+  --token <安全令牌> \
+  --bucket <存储桶名称> \
+  --region <地域区域> \
+  --cos-key <COS 上的文件路径>
+```
+
+可选参数：
+- `--content-type <mime>`: 指定文件 MIME 类型
+- `--start-time <ts>`: 签名起始时间戳
+- `--expired-time <ts>`: 签名过期时间戳
+
+## 脚本工具一览
+
+| 脚本 | 说明 |
+|------|------|
+| `fetch_weixin_articles.py` | 微信公众号文章批量抓取 |
+| `add_article.py` | 添加新文章到 CSV 列表 |
+| `fetch_rss_articles.py` | RSS 自动拉取脚本 |
+| `ima_upload.py` | IMA 知识库上传脚本 |
+| `cos-upload.cjs` | 腾讯云 COS 对象存储上传 |
+
+## 项目目录结构
+
+```
+wechat_articles_downloads/
+├── fetch_weixin_articles.py  # 文章抓取主脚本
+├── add_article.py            # 添加文章到 CSV
+├── fetch_rss_articles.py     # RSS 自动拉取
+├── ima_upload.py             # IMA 知识库上传
+├── cos-upload.cjs           # COS 对象存储上传
+├── articles_with_publish_date.csv  # 文章列表数据
+├── requirements.txt          # Python 依赖
+├── .env.example              # 环境变量示例
+├── README.md                 # 本文档
+└── backup/                   # 文章备份目录
+    └── 太阳照常升起/
+        ├── html/             # HTML 文件
+        ├── md/               # Markdown 文件
+        └── images/           # 文章图片
+```
 
 ## 输出目录结构
 

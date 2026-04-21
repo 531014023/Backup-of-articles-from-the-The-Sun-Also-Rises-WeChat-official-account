@@ -1095,13 +1095,17 @@ class ProgressManager:
                 pass
     
     def save(self):
-        """保存进度"""
+        """保存进度（按序号数值降序排列）"""
         try:
+            # 按序号数值降序排列
+            sorted_completed = sorted(self.completed, key=lambda x: int(x), reverse=True)
+            sorted_failed = dict(sorted(self.failed.items(), key=lambda item: int(item[0]), reverse=True))
+            sorted_skipped = sorted(self.skipped, key=lambda x: int(x), reverse=True)
             with open(self.progress_file, 'w', encoding='utf-8') as f:
                 json.dump({
-                    'completed': list(self.completed),
-                    'failed': self.failed,
-                    'skipped': list(self.skipped)
+                    'completed': sorted_completed,
+                    'failed': sorted_failed,
+                    'skipped': sorted_skipped
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logging.error(f"保存进度失败: {e}")
